@@ -16,7 +16,10 @@ class RawMatCNN(nn.Module):
         backbone = mobilenet_v3_small(
             weights=MobileNet_V3_Small_Weights.DEFAULT,
         )
-        feature_size = backbone.classifier[0].in_features
+        first_classifier = backbone.classifier[0]
+        if not isinstance(first_classifier, nn.Linear):
+            raise TypeError("Expected the first classifier layer to be Linear")
+        feature_size = first_classifier.in_features
 
         self.encoder = nn.Sequential(
             backbone.features,

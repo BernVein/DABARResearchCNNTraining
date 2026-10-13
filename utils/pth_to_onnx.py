@@ -1,10 +1,12 @@
 from pathlib import Path
+
 import torch
+
 from model import RawMatCNN
 
 ROOT = Path(__file__).resolve().parent.parent
-CHECKPOINT = ROOT / "outputs" / "rice_bran_90mm_run01.pth"
-OUTPUT = ROOT / "outputs" / "rice_bran_90mm_run01.onnx"
+CHECKPOINT = ROOT / "models" / "auto_detect.pth"
+OUTPUT = ROOT / "models" / "auto.onnx"
 
 
 def export():

@@ -6,11 +6,7 @@ import pandas as pd
 
 from utils.preprocess import circular_crop, extract_patches, resize_image
 
-
-OUTPUT_ROOT = Path(
-    r"C:\Users\realb\Documents\PROJECT_FILES"
-    r"\Dataset\for_training\regression\90mm_preprocessed"
-)
+OUTPUT_ROOT = Path(r"C:\Users\realb\Documents\PROJECT_FILES\Dataset\for_training\classification\raw_material_batched")
 
 
 def save_rgb(path, image):
@@ -62,4 +58,4 @@ def prepare_dataset(manifest_path, output_root=OUTPUT_ROOT):
 
 
 if __name__ == "__main__":
-    prepare_dataset(Path("manifest.csv"))
+    prepare_dataset(Path("raw_material_manifest_classification.csv"))

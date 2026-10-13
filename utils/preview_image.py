@@ -1,6 +1,5 @@
 import cv2
 import matplotlib.pyplot as plt
-
 from preprocess import (
     GRID_SIZE,
     RADIUS,
@@ -8,6 +7,7 @@ from preprocess import (
     extract_patches,
     resize_image,
 )
+
 
 def _preview_all(image, radius=RADIUS):
     cropped, mask = circular_crop(image, radius)

@@ -1,4 +1,6 @@
+import argparse
 from pathlib import Path
+from typing import Literal
 
 import torch
 from torch import nn
@@ -8,17 +10,17 @@ from dataset import RawMaterialDataset
 from model import RawMatCNN
 from utils.preprocess import (
     GRID_SIZE,
-    INPUT_SIZE,
-    RADIUS,
     IMAGENET_MEAN,
     IMAGENET_STD,
+    INPUT_SIZE,
+    RADIUS,
     normalize_images,
 )
 
-
+PREPARED_ROOT = Path(r"C:\Users\realb\Documents\PROJECT_FILES\Dataset\for_training\classification\raw_material_batched")
 ROOT = Path(__file__).resolve().parent
-MANIFEST = ROOT / "manifest.csv"
-OUTPUT = ROOT / "outputs" / "rice_bran_90mm_run01.pth"
+MANIFEST = ROOT / "raw_material_MANIFEST_classification.csv"
+OUTPUT = ROOT / "models" / "auto_detect.pth"
 EPOCHS = 300
 BATCH_SIZE = 32
 
@@ -59,22 +61,35 @@ def cache_features(model, dataset, device):
     return features, targets
 
 
-def train():
+def train(task: Literal["classification", "regression"] = "regression"):
+    if task not in {"classification", "regression"}:
+        raise ValueError(f"Unknown task: {task}")
+    classification = task == "classification"
+
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is unavailable")
     if OUTPUT.exists():
-        raise FileExistsError(f"Choose a new output path: {OUTPUT}")
+        raise FileExistsError(f"Choose a new OUTPUT path: {OUTPUT}")
 
     torch.manual_seed(42)
     torch.backends.cudnn.benchmark = True
     device = torch.device("cuda")
 
-    train_data = RawMaterialDataset(MANIFEST, "training")
-    val_data = RawMaterialDataset(MANIFEST, "validation")
+    train_data = RawMaterialDataset(MANIFEST, "training", task=task, prepared_root=PREPARED_ROOT)
+    val_data = RawMaterialDataset(MANIFEST, "validation", task=task, prepared_root=PREPARED_ROOT)
     label_keys = train_data.label_keys
+
+    if classification:
+        if len(label_keys) < 2:
+            raise ValueError("Classification needs at least two classes")
+        missing = set(label_keys) - set(train_data.images["label"])
+        if missing:
+            raise ValueError(f"Classes missing from training: {sorted(missing)}")
+
     model = RawMatCNN(num_outputs=len(label_keys)).to(device)
 
-    print("Output order:", label_keys, flush=True)
+    print("Task:", task, flush=True)
+    print("OUTPUT order:", label_keys, flush=True)
 
     print("GPU:", torch.cuda.get_device_name(device), flush=True)
     print("Caching training features...", flush=True)
@@ -87,9 +102,12 @@ def train():
     optimizer = torch.optim.Adam(
         model.head.parameters(), lr=1e-3, weight_decay=1e-4,
     )
-    loss_function = nn.SmoothL1Loss(beta=5.0)
+    # Classification uses integer targets and raw class scores.
+    loss_function = (
+        nn.CrossEntropyLoss() if classification else nn.SmoothL1Loss(beta=5.0)
+    )
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    best_rmse = float("inf")
+    best_score = float("inf")
 
     for epoch in range(EPOCHS):
         model.train()
@@ -109,28 +127,52 @@ def train():
 
         model.eval()
         with torch.no_grad():
-            errors = model.head(val_x) - val_y
-            if not torch.isfinite(errors).all():
+            prediction = model.head(val_x)
+            if not torch.isfinite(prediction).all():
                 raise RuntimeError("Nonfinite validation predictions")
-            rmse = errors.square().mean().sqrt().item()
-            mae = errors.abs().mean().item()
+
+            if classification:
+                val_loss = loss_function(prediction, val_y).item()
+                predicted_classes = prediction.argmax(dim=1)
+                accuracy = (predicted_classes == val_y).float().mean().item()
+                # Select classification checkpoints by lowest validation loss.
+                score = val_loss
+                metrics = {
+                    "validation_loss": val_loss,
+                    "validation_accuracy": accuracy,
+                }
+                validation_text = (
+                    f"Val loss: {val_loss:.4f} | Val accuracy: {accuracy:.2%}"
+                )
+            else:
+                errors = prediction - val_y
+                if not torch.isfinite(errors).all():
+                    raise RuntimeError("Nonfinite validation errors")
+                rmse = errors.square().mean().sqrt().item()
+                mae = errors.abs().mean().item()
+                score = rmse
+                metrics = {
+                    "validation_rmse": rmse,
+                    "validation_mae": mae,
+                }
+                validation_text = f"Val RMSE: {rmse:.4f} | Val MAE: {mae:.4f}"
 
         print(
             f"Epoch {epoch + 1}/{EPOCHS} | "
             f"Train loss: {(loss_sum / len(train_x)).item():.4f} | "
-            f"Val RMSE: {rmse:.4f} | Val MAE: {mae:.4f}",
+            f"{validation_text}",
             flush=True,
         )
 
-        if rmse < best_rmse:
-            best_rmse = rmse
+        if score < best_score:
+            best_score = score
             torch.save({
+                "task": task,
                 "state_dict": model.state_dict(),
                 "num_outputs": len(label_keys),
                 "label_keys": list(label_keys),
                 "epoch": epoch + 1,
-                "validation_rmse": rmse,
-                "validation_mae": mae,
+                **metrics,
                 "pooling": "equal_mean_population_std",
                 "input_size": INPUT_SIZE,
                 "grid_size": GRID_SIZE,
@@ -143,8 +185,20 @@ def train():
             }, OUTPUT)
 
     print(f"Best checkpoint: {OUTPUT}")
-    print(f"Best validation RMSE: {best_rmse:.4f} percentage points")
+    if classification:
+        print(f"Best validation loss: {best_score:.4f}")
+    else:
+        print(f"Best validation RMSE: {best_score:.4f} percentage points")
 
 
 if __name__ == "__main__":
-    train()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "task",
+        choices=["regression", "classification"],
+        nargs="?",
+        default="regression",
+        help="Training task (default: regression)",
+    )
+    args = parser.parse_args()
+    train(args.task)

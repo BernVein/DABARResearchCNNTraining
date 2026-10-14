@@ -2,19 +2,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 #################### DATASET PREPARATION ####################
-RAW_DATASET_DIR = Path(r"C:\Users\realb\Documents\PROJECT_FILES\Dataset\raw_material_batched")
-TASK = "classification"
-FILENAME = "raw_material_manifest"
+RAW_DATASET_DIR = Path(r"C:\Users\realb\Documents\PROJECT_FILES\Dataset\90mm")
+TASK = "regression"
+FILENAME = "rice_bran_90mm_augmented"
 MANIFEST_FILENAME = ROOT / f"{FILENAME}_{TASK}.csv"
 
 if TASK not in ["classification", "regression"]:
     raise ValueError(f"Invalid task: {TASK}. Must be one of 'classification', and 'regression'")
 
-PREPROCESSED_DATASET_DIR = Path(r"C:\Users\realb\Documents\PROJECT_FILES\Dataset\for_training\classification\raw_material_batched")
+PREPROCESSED_DATASET_DIR = Path(r"C:\Users\realb\Documents\PROJECT_FILES\Dataset\for_training\regression\rice_bran_90mm_augmented")
 
 #################### TRAINING ####################
-PTH_MODEL_OUTPUT_LOCATION = ROOT / "models" / "pth" / "auto.pth"
-ONNX_MODEL_OUTPUT_LOCATION = ROOT / "models" / "onnx" / "auto.onnx"
+PTH_MODEL_OUTPUT_LOCATION = ROOT / "models" / "pth" / "rice_bran_90mm_augmented.pth"
+ONNX_MODEL_OUTPUT_LOCATION = ROOT / "models" / "onnx" / "rice_bran_90mm_augmented.onnx"
 EPOCHS = 300
 BATCH_SIZE = 32
 

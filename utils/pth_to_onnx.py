@@ -1,24 +1,21 @@
+import argparse
 from pathlib import Path
 
 import torch
 
 from model import RawMatCNN
 
-ROOT = Path(__file__).resolve().parent.parent
-CHECKPOINT = ROOT / "models" / "auto_detect.pth"
-OUTPUT = ROOT / "models" / "auto.onnx"
 
-
-def export():
+def export(checkpoint: str | Path, output: str | Path):
     # Load only a checkpoint you created or trust.
-    checkpoint = torch.load(
-        CHECKPOINT,
+    loaded_checkpoint = torch.load(
+        checkpoint,
         map_location="cpu",
         weights_only=False,
     )
 
-    model = RawMatCNN(num_outputs=checkpoint["num_outputs"])
-    model.load_state_dict(checkpoint["state_dict"])
+    model = RawMatCNN(num_outputs=loaded_checkpoint["num_outputs"])
+    model.load_state_dict(loaded_checkpoint["state_dict"])
     model.eval()
 
     # Example shapes: one whole image and its 16 patches.
@@ -28,7 +25,7 @@ def export():
     torch.onnx.export(
         model,
         (whole, patches),
-        str(OUTPUT),
+        str(output),
         input_names=["whole", "patches"],
         output_names=["prediction"],
         dynamo=True,
@@ -36,8 +33,12 @@ def export():
         verify=True,
     )
 
-    print(f"Exported: {OUTPUT}")
+    print(f"Exported: {output}")
 
 
 if __name__ == "__main__":
-    export()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("checkpoint", type=Path)
+    parser.add_argument("output", type=Path)
+    args = parser.parse_args()
+    export(args.checkpoint, args.output)

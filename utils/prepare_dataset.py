@@ -4,9 +4,12 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from utils.preprocess import circular_crop, extract_patches, resize_image
-
-OUTPUT_ROOT = Path(r"C:\Users\realb\Documents\PROJECT_FILES\Dataset\for_training\classification\raw_material_batched")
+from utils.preprocess import (
+    GRID_SIZE,
+    circular_crop,
+    extract_patches,
+    resize_image,
+)
 
 
 def save_rgb(path, image):
@@ -16,18 +19,15 @@ def save_rgb(path, image):
         raise OSError(f"Cannot save image: {path}")
 
 
-def prepare_dataset(manifest_path, output_root=OUTPUT_ROOT):
-    records = pd.read_csv(manifest_path)
+def prepare_dataset(manifest_path, output_root):
+    records = pd.read_csv(
+        manifest_path,
+        dtype={"label": str, "batch": str},
+        keep_default_na=False,
+    )
 
     for index, record in enumerate(records.to_dict("records"), start=1):
         source = Path(record["image_path"])
-        image = cv2.imread(str(source))
-        if image is None:
-            raise ValueError(f"Cannot read image: {source}")
-
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        cropped, mask = circular_crop(image)
-        patches, coverages = extract_patches(cropped, mask)
 
         folder = (
             Path(output_root)
@@ -35,8 +35,31 @@ def prepare_dataset(manifest_path, output_root=OUTPUT_ROOT):
             / record["batch"]
             / source.stem
         )
-        # Refuse to overwrite an existing prepared photograph.
-        folder.mkdir(parents=True, exist_ok=False)
+
+        # Skip only when every expected prepared file exists.
+        required_files = [
+            folder / f"{source.stem}_full_resized.png",
+            folder / "coverages.npy",
+            *[
+                folder / f"{source.stem}_p{i}.png"
+                for i in range(1, GRID_SIZE ** 2 + 1)
+            ],
+        ]
+
+        if all(path.is_file() for path in required_files):
+            print(f"{index}/{len(records)}: SKIPPED {source.name}")
+            continue
+
+        # Existing incomplete folders can be processed again.
+        folder.mkdir(parents=True, exist_ok=True)
+
+        image = cv2.imread(str(source))
+        if image is None:
+            raise ValueError(f"Cannot read image: {source}")
+
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        cropped, mask = circular_crop(image)
+        patches, coverages = extract_patches(cropped, mask)
 
         save_rgb(
             folder / f"{source.stem}_full_resized.png",
@@ -54,8 +77,4 @@ def prepare_dataset(manifest_path, output_root=OUTPUT_ROOT):
             np.asarray(coverages, dtype=np.float32),
         )
 
-        print(f"{index}/{len(records)}: {source.name}")
-
-
-if __name__ == "__main__":
-    prepare_dataset(Path("raw_material_manifest_classification.csv"))
+        print(f"{index}/{len(records)}: PROCESSED {source.name}")

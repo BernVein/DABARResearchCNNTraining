@@ -1,11 +1,9 @@
-import argparse
-from pathlib import Path
-from typing import Literal
 
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
+import config
 from dataset import RawMaterialDataset
 from model import RawMatCNN
 from utils.preprocess import (
@@ -16,13 +14,7 @@ from utils.preprocess import (
     RADIUS,
     normalize_images,
 )
-
-PREPARED_ROOT = Path(r"C:\Users\realb\Documents\PROJECT_FILES\Dataset\for_training\classification\raw_material_batched")
-ROOT = Path(__file__).resolve().parent
-MANIFEST = ROOT / "raw_material_MANIFEST_classification.csv"
-OUTPUT = ROOT / "models" / "auto_detect.pth"
-EPOCHS = 300
-BATCH_SIZE = 32
+from utils.pth_to_onnx import export
 
 
 @torch.no_grad()
@@ -61,22 +53,21 @@ def cache_features(model, dataset, device):
     return features, targets
 
 
-def train(task: Literal["classification", "regression"] = "regression"):
-    if task not in {"classification", "regression"}:
-        raise ValueError(f"Unknown task: {task}")
-    classification = task == "classification"
+def train():
+    config.check_config()
+    if config.TASK not in {"classification", "regression"}:
+        raise ValueError(f"Unknown config.TASK: {config.TASK}")
+    classification = config.TASK == "classification"
 
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is unavailable")
-    if OUTPUT.exists():
-        raise FileExistsError(f"Choose a new OUTPUT path: {OUTPUT}")
 
     torch.manual_seed(42)
     torch.backends.cudnn.benchmark = True
     device = torch.device("cuda")
 
-    train_data = RawMaterialDataset(MANIFEST, "training", task=task, prepared_root=PREPARED_ROOT)
-    val_data = RawMaterialDataset(MANIFEST, "validation", task=task, prepared_root=PREPARED_ROOT)
+    train_data = RawMaterialDataset(config.MANIFEST_FILENAME, "training", task=config.TASK, prepared_root=config.PREPROCESSED_DATASET_DIR)
+    val_data = RawMaterialDataset(config.MANIFEST_FILENAME, "validation", task=config.TASK, prepared_root=config.PREPROCESSED_DATASET_DIR)
     label_keys = train_data.label_keys
 
     if classification:
@@ -88,8 +79,8 @@ def train(task: Literal["classification", "regression"] = "regression"):
 
     model = RawMatCNN(num_outputs=len(label_keys)).to(device)
 
-    print("Task:", task, flush=True)
-    print("OUTPUT order:", label_keys, flush=True)
+    print("Task:", config.TASK, flush=True)
+    print("config.PTH_MODEL_OUTPUT_LOCATION order:", label_keys, flush=True)
 
     print("GPU:", torch.cuda.get_device_name(device), flush=True)
     print("Caching training features...", flush=True)
@@ -106,15 +97,17 @@ def train(task: Literal["classification", "regression"] = "regression"):
     loss_function = (
         nn.CrossEntropyLoss() if classification else nn.SmoothL1Loss(beta=5.0)
     )
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    
+    config.PTH_MODEL_OUTPUT_LOCATION.parent.mkdir(parents=True, exist_ok=True)
+    config.ONNX_MODEL_OUTPUT_LOCATION.parent.mkdir(parents=True, exist_ok=True)
     best_score = float("inf")
 
-    for epoch in range(EPOCHS):
+    for epoch in range(config.EPOCHS):
         model.train()
         order = torch.randperm(len(train_x), device=device)
         loss_sum = torch.zeros((), device=device)
 
-        for indices in order.split(BATCH_SIZE):
+        for indices in order.split(config.BATCH_SIZE):
             optimizer.zero_grad(set_to_none=True)
             prediction = model.head(train_x[indices])
             loss = loss_function(prediction, train_y[indices])
@@ -158,7 +151,7 @@ def train(task: Literal["classification", "regression"] = "regression"):
                 validation_text = f"Val RMSE: {rmse:.4f} | Val MAE: {mae:.4f}"
 
         print(
-            f"Epoch {epoch + 1}/{EPOCHS} | "
+            f"Epoch {epoch + 1}/{config.EPOCHS} | "
             f"Train loss: {(loss_sum / len(train_x)).item():.4f} | "
             f"{validation_text}",
             flush=True,
@@ -167,7 +160,7 @@ def train(task: Literal["classification", "regression"] = "regression"):
         if score < best_score:
             best_score = score
             torch.save({
-                "task": task,
+                "config.TASK": config.TASK,
                 "state_dict": model.state_dict(),
                 "num_outputs": len(label_keys),
                 "label_keys": list(label_keys),
@@ -182,23 +175,17 @@ def train(task: Literal["classification", "regression"] = "regression"):
                 "train_records": train_data.images.to_dict("records"),
                 "validation_records": val_data.images.to_dict("records"),
                 "seed": 42,
-            }, OUTPUT)
-
-    print(f"Best checkpoint: {OUTPUT}")
+            }, config.PTH_MODEL_OUTPUT_LOCATION)
+    print(f"Best checkpoint: {config.PTH_MODEL_OUTPUT_LOCATION}")
+    
     if classification:
         print(f"Best validation loss: {best_score:.4f}")
     else:
         print(f"Best validation RMSE: {best_score:.4f} percentage points")
+    
+    export(checkpoint=config.PTH_MODEL_OUTPUT_LOCATION, output=config.ONNX_MODEL_OUTPUT_LOCATION)
+
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "task",
-        choices=["regression", "classification"],
-        nargs="?",
-        default="regression",
-        help="Training task (default: regression)",
-    )
-    args = parser.parse_args()
-    train(args.task)
+    train()

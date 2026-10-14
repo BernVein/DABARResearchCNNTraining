@@ -1,11 +1,9 @@
-import argparse
-from pathlib import Path
-from typing import Literal
 
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
+import config
 from dataset import RawMaterialDataset
 from model import RawMatCNN
 from utils.preprocess import (
@@ -17,7 +15,7 @@ from utils.preprocess import (
     normalize_images,
 )
 from utils.pth_to_onnx import export
-import config
+
 
 @torch.no_grad()
 def cache_features(model, dataset, device):

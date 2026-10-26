@@ -8,6 +8,9 @@ from utils.augment import (
     augment_contrast,
     augment_gamma,
     augment_saturation,
+    augment_clahe,
+    augment_brightness,
+    augment_noise
 )
 from utils.preprocess import (
     GRID_SIZE,
@@ -30,25 +33,30 @@ def prepare_dataset(manifest_path, output_root):
         keep_default_na=False,
     )
 
+    # CLAHE is preprocessing, so it is not a separate augmentation.
     augments = [
         augment_contrast,
         augment_gamma,
         augment_saturation,
+        augment_brightness,
+        augment_noise,
     ]
 
     for index, record in enumerate(records.to_dict("records"), start=1):
         source = Path(record["image_path"])
+        base_name = f"{source.stem}"
 
-        # Original, followed by one separate copy per augmentation.
-        versions = [(source.stem, None)]
+        # Every split gets the CLAHE baseline.
+        versions = [(base_name, None)]
 
+        # Only training gets augmented copies of that baseline.
         if record["split"] == "training":
             versions += [
-                (f"{source.stem}_{augment.__name__}", augment)
+                (f"{base_name}_{augment.__name__}", augment)
                 for augment in augments
             ]
 
-        original = None
+        clahe_image = None
 
         for name, augment in versions:
             folder = (
@@ -71,14 +79,15 @@ def prepare_dataset(manifest_path, output_root):
                 print(f"{index}/{len(records)}: SKIPPED {name}")
                 continue
 
-            if original is None:
+            if clahe_image is None:
                 image = cv2.imread(str(source))
                 if image is None:
                     raise ValueError(f"Cannot read image: {source}")
 
-                original = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                clahe_image = augment_clahe(rgb)
 
-            image = original.copy()
+            image = clahe_image.copy()
             if augment is not None:
                 image = augment(image)
 

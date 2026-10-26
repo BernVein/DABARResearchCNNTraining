@@ -82,7 +82,7 @@ ssh <username>@<hostname>.local
 ## 5. Install Picamera2 (camera support)
 
 ```bash
-sudo apt install -y git python3-picamera2 --no-install-recommends
+sudo apt install -y git python3-picamera2 hailo-all --no-install-recommends
 ```
 
 - `python3-picamera2` is the official camera stack for Pi OS — required since the backend (`main.py`) uses `Picamera2` directly for capture and streaming.
@@ -147,13 +147,13 @@ nano ~/.ssh/config
 ```
 
 ```
-# Account 1 (backend — VSUResearch)
+# Account 1 (backend - VSUResearch)
 Host github-backend
   HostName github.com
   User git
   IdentityFile ~/.ssh/id_ed25519_backend
 
-# Account 2 (frontend — BernVein)
+# Account 2 (frontend - BernVein)
 Host github-frontend
   HostName github.com
   User git

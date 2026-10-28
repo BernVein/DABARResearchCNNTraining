@@ -55,8 +55,7 @@ def cache_features(model, dataset, device):
 
 def train():
     config.check_config()
-    if config.TASK not in {"classification", "regression"}:
-        raise ValueError(f"Unknown config.TASK: {config.TASK}")
+
     classification = config.TASK == "classification"
 
     if not torch.cuda.is_available():

@@ -5,12 +5,12 @@ import numpy as np
 import pandas as pd
 
 from utils.augment import (
+    augment_brightness,
+    augment_clahe,
     augment_contrast,
     augment_gamma,
+    augment_noise,
     augment_saturation,
-    augment_clahe,
-    augment_brightness,
-    augment_noise
 )
 from utils.preprocess import (
     GRID_SIZE,

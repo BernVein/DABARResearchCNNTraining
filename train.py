@@ -2,6 +2,7 @@
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 import config
 from dataset import RawMaterialDataset
@@ -60,8 +61,8 @@ def train():
 
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is unavailable")
-
-    torch.manual_seed(42)
+    SEED = 67
+    torch.manual_seed(SEED)
     torch.backends.cudnn.benchmark = True
     device = torch.device("cuda")
 
@@ -69,6 +70,7 @@ def train():
     val_data = RawMaterialDataset(config.MANIFEST_FILENAME, "validation", task=config.TASK, prepared_root=config.PREPROCESSED_DATASET_DIR)
     label_keys = train_data.label_keys
 
+    # Case: when a class has empty dataset
     if classification:
         if len(label_keys) < 2:
             raise ValueError("Classification needs at least two classes")
@@ -79,7 +81,7 @@ def train():
     model = RawMatCNN(num_outputs=len(label_keys)).to(device)
 
     print("Task:", config.TASK, flush=True)
-    print("config.PTH_MODEL_OUTPUT_LOCATION order:", label_keys, flush=True)
+    print("Label order:", label_keys, flush=True)
 
     print("GPU:", torch.cuda.get_device_name(device), flush=True)
     print("Caching training features...", flush=True)
@@ -101,7 +103,8 @@ def train():
     config.ONNX_MODEL_OUTPUT_LOCATION.parent.mkdir(parents=True, exist_ok=True)
     best_score = float("inf")
 
-    for epoch in range(config.EPOCHS):
+    progress = tqdm(range(config.EPOCHS), desc="Training", unit="epoch")
+    for epoch in progress:
         model.train()
         order = torch.randperm(len(train_x), device=device)
         loss_sum = torch.zeros((), device=device)
@@ -149,11 +152,9 @@ def train():
                 }
                 validation_text = f"Val RMSE: {rmse:.4f} | Val MAE: {mae:.4f}"
 
-        print(
-            f"Epoch {epoch + 1}/{config.EPOCHS} | "
+        progress.set_postfix_str(
             f"Train loss: {(loss_sum / len(train_x)).item():.4f} | "
             f"{validation_text}",
-            flush=True,
         )
 
         if score < best_score:
@@ -173,7 +174,7 @@ def train():
                 "normalization_std": IMAGENET_STD,
                 "train_records": train_data.images.to_dict("records"),
                 "validation_records": val_data.images.to_dict("records"),
-                "seed": 42,
+                "seed": SEED,
             }, config.PTH_MODEL_OUTPUT_LOCATION)
     print(f"Best checkpoint: {config.PTH_MODEL_OUTPUT_LOCATION}")
     

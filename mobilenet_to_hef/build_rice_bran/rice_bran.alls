@@ -1,0 +1,6 @@
+normalization1 = normalization([123.67500305175781, 116.27999877929688, 103.52999877929688], [58.39500045776367, 57.12000274658203, 57.375])
+model_optimization_flavor(optimization_level=2, compression_level=0, batch_size=8)
+model_optimization_config(calibration, batch_size=8, calibset_size=1024)
+model_optimization_config(checker_cfg, policy=enabled, dataset_size=64)
+quantization_param(rice_bran/output_layer1, precision_mode=a16_w16)
+post_quantization_optimization(finetune, policy=enabled, dataset_size=2048, epochs=8, learning_rate=0.0001, batch_size=8)

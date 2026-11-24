@@ -2,19 +2,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 #################### DATASET PREPARATION ####################
-RAW_DATASET_DIR = Path(r"C:\Users\realb\Documents\PROJECT_FILES\Dataset\soybean_meal")
-TASK = "regression"
-FILENAME = "soybean_meal"
+RAW_DATASET_DIR = Path(r"D:\Users\Miles\Thesis Project SBC\90mm")
+TASK = "regression"  # "classification" or "regression"
+FILENAME = "rice_bran"
 MANIFEST_FILENAME = ROOT / f"{FILENAME}_{TASK}.csv"
 
 if TASK not in ["classification", "regression"]:
     raise ValueError(f"Invalid task: {TASK}. Must be one of 'classification', and 'regression'")
 
-PREPROCESSED_DATASET_DIR = Path(r"C:\Users\realb\Documents\PROJECT_FILES\Dataset\for_training\regression\soybean_meal_augmented")
+PREPROCESSED_DATASET_DIR = Path(r"D:\Users\Miles\Thesis Project SBC\Dataset")
 
 #################### TRAINING ####################
-PTH_MODEL_OUTPUT_LOCATION = ROOT / "models" / "pth" / "soybean_meal.pth"
-ONNX_MODEL_OUTPUT_LOCATION = ROOT / "models" / "onnx" / "soybean_meal.onnx"
+PTH_MODEL_OUTPUT_LOCATION = ROOT / "models" / "pth" / "rice_bran.pth"
+ONNX_MODEL_OUTPUT_LOCATION = ROOT / "models" / "onnx" / "rice_bran.onnx"
 EPOCHS = 300
 BATCH_SIZE = 32
 

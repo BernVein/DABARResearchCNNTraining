@@ -1,0 +1,368 @@
+================================================================================
+ mobilenet_to_hef - COMMANDS YOU CAN COPY AND PASTE
+================================================================================
+
+HOW TO READ THIS FILE
+
+  * Every command below is written exactly as you type it. Copy the whole line.
+
+  * There are two places where you type commands:
+
+      [PowerShell]   the normal VS Code terminal on Windows.
+                     The prompt looks like:   PS C:\Users\NITRO V\...>
+
+      [Container]    the terminal INSIDE the Hailo docker.
+                     The prompt looks like:   hailo@...:/local/shared_with_docker/...$
+
+    Each section says which one to use. convert.py only works in [Container].
+
+  * The dataset path used in the examples is
+        /local/shared_with_docker/raw_material_batched
+    If your prepared dataset folder has another name, change the last part.
+
+
+================================================================================
+ QUICK START (the 4 commands you need most of the time)
+================================================================================
+
+  [PowerShell]  1. Start the container
+      wsl -d Ubuntu -u root -- bash -c "rm -rf /tmp/hailo_docker.xauth && touch /tmp/hailo_docker.xauth && chmod 666 /tmp/hailo_docker.xauth"
+      docker start hailo8_ai_sw_suite_2026-07_container
+
+  [PowerShell]  2. Go inside the container
+      docker exec -it -w /local/shared_with_docker/DABARResearchCNNTraining/mobilenet_to_hef hailo8_ai_sw_suite_2026-07_container bash -l
+
+  [Container]   3. Convert the model (all steps, start to finish)
+      python convert.py --prepared-root /local/shared_with_docker/raw_material_batched
+
+  [Container]   4. Leave the container when finished
+      exit
+
+  The final file is:  build/rawmat_encoder.hef
+
+
+================================================================================
+ PART 1 - THE CONTAINER                                            [PowerShell]
+================================================================================
+
+  BEFORE ANYTHING: open an Ubuntu (WSL) window and keep it open, and make sure
+  Docker Desktop is running.
+
+  wsl -d Ubuntu -u root -- bash -c "rm -rf /tmp/hailo_docker.xauth && touch /tmp/hailo_docker.xauth && chmod 666 /tmp/hailo_docker.xauth"
+      Creates a small file the container needs (/tmp/hailo_docker.xauth).
+      Do this once after every PC restart, before starting the container.
+      It first deletes the path, because Docker sometimes turns it into an
+      empty FOLDER, and then the container refuses to start.
+
+  docker start hailo8_ai_sw_suite_2026-07_container
+      Turns the container on.
+      PROBLEM: error says "not a directory ... mount" (often naming
+               /home/hailo/.Xauthority, /etc/localtime or /etc/machine-id)
+      FIX: 1. run the "wsl -d Ubuntu -u root ..." line above
+           2. restart Docker Desktop while the Ubuntu window is open
+              (Docker Desktop tray icon -> Restart, or: docker desktop restart)
+           3. run docker start again
+
+  docker ps
+      Shows what is running. You should see the hailo8 container with "Up".
+
+  docker exec -it -w /local/shared_with_docker/DABARResearchCNNTraining/mobilenet_to_hef hailo8_ai_sw_suite_2026-07_container bash -l
+      Puts your terminal INSIDE the container, in the mobilenet_to_hef folder.
+      Shortcut in VS Code: terminal panel -> small arrow beside "+" ->
+      "Hailo container". It does the same thing.
+
+  docker stop hailo8_ai_sw_suite_2026-07_container
+      Turns the container off. Your files are kept.
+
+  wsl -d Ubuntu -- bash ~/hailo/recreate_container_gpu.sh
+      Deletes the container and makes a new one WITH the GPU (RTX 2050).
+      Only needed if the container is ever removed or broken. Files in
+      shared_with_docker are kept. At the end it should print
+      "TF GPUs: [PhysicalDevice(... GPU:0 ...)]".
+
+  docker exec hailo8_ai_sw_suite_2026-07_container nvidia-smi
+      Shows the GPU from inside the container, and how busy it is.
+      Run it while optimize is running to see the GPU working.
+
+
+================================================================================
+ PART 2 - CONVERTING THE MODEL                                      [Container]
+================================================================================
+
+The conversion has 7 steps. They always run in this order:
+
+    export -> calib -> parse -> optimize -> headfit -> test -> compile
+
+  STEP       WHAT IT DOES                                   WHAT IT CREATES IN build/
+  --------   --------------------------------------------   ----------------------------
+  export     Turns auto.pth into an ONNX file               rawmat_encoder.onnx
+             and saves the small "head" part separately     rawmat_encoder_head.npz
+  calib      Collects images for Hailo to learn from,       rawmat_encoder_calib.npy
+             and images to test with                        rawmat_encoder_test.npz
+  parse      Turns the ONNX into Hailo's own format         rawmat_encoder_parsed.har
+  optimize   Shrinks the model to 8-bit numbers             rawmat_encoder.alls
+             (quantization). This is the slow step.         rawmat_encoder_quantized.har
+  headfit    Re-trains the small head on what the chip      rawmat_encoder_head_hailo.npz
+             really outputs (big accuracy gain, the .hef
+             does not change). Needs --prepared-root.
+  test       Checks how much accuracy was lost              rawmat_encoder_report.json
+  compile    Builds the final file for the Hailo chip       rawmat_encoder.hef
+
+
+--- Run everything at once -----------------------------------------------------
+
+  python convert.py --prepared-root /local/shared_with_docker/raw_material_batched
+
+
+--- Or run one step at a time (recommended the first time) ----------------------
+
+  You choose steps with --steps followed by the step names.
+  More than one step: separate with commas, NO spaces.
+
+  python convert.py --steps export
+  python convert.py --steps calib --prepared-root /local/shared_with_docker/raw_material_batched
+  python convert.py --steps parse
+  python convert.py --steps optimize
+  python convert.py --steps headfit --prepared-root /local/shared_with_docker/raw_material_batched
+  python convert.py --steps test
+  python convert.py --steps compile
+
+  Two or more together:
+
+  python convert.py --steps export,calib --prepared-root /local/shared_with_docker/raw_material_batched
+  python convert.py --steps optimize,test
+  python convert.py --steps parse,optimize,test,compile
+
+  NOTE: the calib and headfit steps need --prepared-root.
+  NOTE: every new optimize run deletes the old _head_hailo.npz, so run
+        headfit again after optimize.
+  NOTE: a step needs the files made by the steps before it. For example
+        "optimize" fails if you never ran "parse".
+
+
+--- What a good result looks like ----------------------------------------------
+
+  export     "ONNX encoder vs PyTorch" is above 80 dB
+  calib      "calibration set: (2048, 224, 224, 3)" and "test set: 40 samples"
+  parse      "Hailo native vs ONNX Runtime" is above 60 dB
+  optimize   "Hailo FP-optimized ... vs ONNX Runtime" is above 40 dB
+  headfit    "best validation score" close to the original model's score
+             (rice_bran.pth: 0.92). Lower is better.
+  test       classification: quantized_hailo_head_accuracy close to
+             float_accuracy. regression: quantized_hailo_head_mae close to
+             float_mae. Higher encoder_snr_db is better.
+             The "quantized_..." numbers use the ORIGINAL head, the
+             "quantized_hailo_head_..." numbers use the re-trained head, which
+             is the one you use on the Pi.
+  compile    "saved .../rawmat_encoder.hef"
+
+  dB = how close two results are. Bigger number = closer. Every +20 dB means
+  the error is 10 times smaller.
+
+
+================================================================================
+ PART 3 - EXTRA SETTINGS                                            [Container]
+================================================================================
+
+Add these to the end of a convert.py command. You can combine several.
+You do NOT need any of them for a normal run; the defaults are already set.
+
+
+--- Making the quantized model more accurate (use with optimize) ---------------
+
+  python convert.py --steps optimize,test --opt-level 4
+      How hard Hailo works to keep accuracy. Pick a number 0 to 4:
+        0  fastest, worst accuracy (only for quick trials)
+        1  adds bias correction
+        2  adds finetune                      <- used when you type nothing
+        3  AdaRound, slow
+        4  AdaRound with more images, slowest and best
+
+  python convert.py --steps optimize,test --activation-clipping
+      Ignores rare extreme values inside the network. Try this when the test
+      report shows a low SNR.
+
+  python convert.py --steps optimize,headfit,test --layers-16bit normalization1,conv1,dw1 --prepared-root /local/shared_with_docker/raw_material_batched
+      Runs the named layers in 16-bit instead of 8-bit. Use the layers at the
+      top of the --analyze-noise list. Costs some speed on the chip.
+
+  python convert.py --steps optimize,headfit,test --avgpool-reduction --prepared-root /local/shared_with_docker/raw_material_batched
+      Splits the big average-pool layers into two steps (Hailo tip for
+      MobileNetV3, from your earlier optimize_rice_bran.py).
+
+  python convert.py --steps headfit --headfit-epochs 300 --headfit-lr 0.001 --prepared-root /local/shared_with_docker/raw_material_batched
+      Head re-training settings. Normal values = train.py: 300 and 0.001.
+
+  python convert.py --steps optimize,test --finetune-epochs 12
+      How many times finetune goes over the images. Normal value: 8.
+
+  python convert.py --steps optimize,test --finetune-images 2048
+      How many images finetune uses. Normal value: 2048.
+
+  python convert.py --steps optimize,test --finetune-lr 0.00005
+      Finetune learning rate (step size). Normal value: 0.0001.
+
+  python convert.py --steps optimize,test --calibset-size 1024
+      How many images are used to measure value ranges. Normal value: 1024.
+
+  python convert.py --steps optimize,test --batch-size 4
+      Images processed at once. Normal value: 8. Use a smaller number if you
+      get an "out of memory" error.
+
+  python convert.py --steps optimize,test --no-output-16bit
+      Makes the output 8-bit instead of 16-bit. Less accurate; only use it if
+      the 16-bit output causes an error.
+
+  python convert.py --steps optimize,test --extra-alls my_commands.alls
+      For advanced use: adds your own Hailo model script commands, written in a
+      text file (here called my_commands.alls).
+
+
+--- Checking the result in more detail (use with test) -------------------------
+
+  python convert.py --steps test --analyze-noise
+      Also lists which layers lose the most accuracy. Slow.
+
+  python convert.py --steps calib,test --test-splits validation,testing --prepared-root /local/shared_with_docker/raw_material_batched
+      Tests on 80 samples (validation + testing) instead of 40.
+
+
+--- Calibration images (use with calib) ----------------------------------------
+
+  python convert.py --steps calib --calib-size 2048 --prepared-root /local/shared_with_docker/raw_material_batched
+      How many images go into the calibration set. Normal value: 2048.
+
+  python convert.py --steps calib --calib-whole-fraction 0.25 --prepared-root /local/shared_with_docker/raw_material_batched
+      How much of the set should be whole-image views (the rest is patches).
+      0.25 means "up to 25%". Normal value: 0.25.
+
+  python convert.py --steps calib --seed 42 --prepared-root /local/shared_with_docker/raw_material_batched
+      The random pick of images. Same number = same images every time.
+
+
+--- Files and names ------------------------------------------------------------
+
+  python convert.py --steps optimize,test --opt-level 4 --out-dir build_level4
+      Saves the results in a different folder, so you can compare two tries.
+      Copy these 5 files from build/ into the new folder first:
+      rawmat_encoder.onnx, rawmat_encoder_head.npz, rawmat_encoder_calib.npy,
+      rawmat_encoder_test.npz, rawmat_encoder_parsed.har
+
+  python convert.py --name my_model --prepared-root /local/shared_with_docker/raw_material_batched
+      Changes the file names from rawmat_encoder... to my_model...
+
+  python convert.py --steps export --checkpoint ../models/pth/auto.pth
+      Which trained model to convert. Normal value: ../models/pth/auto.pth
+
+  python convert.py --steps calib --manifest ../raw_material_manifest_classification.csv --prepared-root /local/shared_with_docker/raw_material_batched
+      Which manifest file to read (the list of images, labels and splits).
+
+  python convert.py --steps export --opset 13
+      ONNX version number. Leave it at 13.
+
+
+--- Chip and speed -------------------------------------------------------------
+
+  python convert.py --steps parse,optimize,test,compile --hw-arch hailo8
+      Which Hailo chip the file is for:
+        hailo8l  Raspberry Pi AI Kit / 13 TOPS HAT   <- used when you type nothing
+        hailo8   26 TOPS HAT
+      The chip is chosen in the parse step, so start again from parse.
+
+  python convert.py --steps optimize,compile --compile-max
+      Slower compile that tries to make the model run faster on the chip.
+      Does not change accuracy.
+
+
+--- Help -----------------------------------------------------------------------
+
+  python convert.py --help
+      Prints all settings and their normal values.
+
+
+================================================================================
+ PART 4 - LOOKING AT THE RESULTS                                    [Container]
+================================================================================
+
+  ls -lh build
+      Lists the files that were created and their sizes.
+
+  cat build/rawmat_encoder_report.json
+      Shows the test report again.
+
+  cat build/rawmat_encoder.alls
+      Shows the Hailo settings used in the last optimize run.
+
+  hailo profiler build/rawmat_encoder_quantized.har
+      Makes Hailo's HTML report about the model.
+
+
+================================================================================
+ PART 5 - MOVING FILES                                             [PowerShell]
+================================================================================
+
+  explorer.exe \\wsl$\Ubuntu\home\nitro_v_tanken\hailo\shared_with_docker
+      Opens the shared folder in File Explorer.
+      Put the dataset IN here. Take the .hef and _head.npz OUT from
+      DABARResearchCNNTraining\mobilenet_to_hef\build
+
+  code "\\wsl$\Ubuntu\home\nitro_v_tanken\hailo\shared_with_docker\DABARResearchCNNTraining"
+      Opens the container's copy of the code in VS Code.
+
+
+================================================================================
+ PART 6 - ON THE RASPBERRY PI                              [Pi terminal]
+================================================================================
+
+  Copy these to the Pi first:
+      build/rawmat_encoder.hef
+      build/rawmat_encoder_head_hailo.npz   (or _head.npz if headfit was not run)
+      convert.py
+      hef_inference_example.py
+      the utils/ folder of the repo
+
+  hailortcli scan
+      Checks that the Pi can see the Hailo chip.
+
+  hailortcli run build/rawmat_encoder.hef
+      Runs the model on the chip with dummy data and shows the speed (FPS).
+
+  python hef_inference_example.py build/rawmat_encoder.hef build/rawmat_encoder_head_hailo.npz photo.jpg
+      Predicts one photo. Replace photo.jpg with your image.
+      (This script has not been tried on a real Pi yet.)
+
+
+================================================================================
+ COMMON ERRORS
+================================================================================
+
+  "touch: setting times of '/tmp/hailo_docker.xauth': Permission denied"
+      The path became a root-owned folder. Use the "wsl -d Ubuntu -u root ..."
+      line from Quick Start step 1 instead of the plain touch.
+
+  docker start: "not a directory: Are you trying to mount a directory onto a file"
+      Run the "wsl -d Ubuntu -u root ..." line, restart Docker Desktop with the
+      Ubuntu window open, then docker start again.
+
+  "TensorFlow sees 0 GPU(s)"
+      The container was made without the GPU. Run
+      wsl -d Ubuntu -- bash ~/hailo/recreate_container_gpu.sh
+
+  GPU "out of memory" (OOM) during optimize
+      The RTX 2050 has only 4 GB. Add --batch-size 4 (or 2).
+
+  "unknown steps: ['LIST']"
+      You typed a placeholder. Use real step names: --steps parse,optimize
+
+  "--prepared-root is required for the calib step"
+      Add --prepared-root and the dataset path to the command.
+
+  "Cannot read image: ..."
+      The dataset path is wrong, or the folder is not the PREPARED dataset.
+      The message shows the exact file it looked for.
+
+  "No module named 'hailo_sdk_client'"
+      You are in PowerShell, not in the container. Do Quick Start step 2.
+
+  "No such file ... rawmat_encoder_parsed.har" (or another build/ file)
+      An earlier step has not been run yet. Run the steps in order.

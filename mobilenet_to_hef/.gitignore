@@ -1,0 +1,12 @@
+build/
+__pycache__/
+
+# Generated conversion artifacts and logs
+*.har
+*.hef
+*.onnx
+*.npy
+*.npz
+*.log
+.install_logs/
+build_*/*.txt

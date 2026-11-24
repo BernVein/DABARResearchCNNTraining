@@ -1,0 +1,35 @@
+{
+  "samples": 120,
+  "fp_optimized_vs_onnx_db": 44.38589344165309,
+  "encoder_snr_db": 11.109453521240336,
+  "encoder_snr_whole_view_db": 16.3847636982558,
+  "encoder_snr_patch_views_db": 10.429771597891351,
+  "pooled_1728_snr_db": 16.56281950064208,
+  "model_output_snr_db": 18.074511926001854,
+  "model_output_max_abs_diff": 2.255488872528076,
+  "float_mae": 0.7599936127662659,
+  "float_rmse": 1.0547550916671753,
+  "quantized_mae": 1.055431842803955,
+  "quantized_rmse": 1.3032987117767334,
+  "quantized_hailo_head_mae": 0.816967248916626,
+  "quantized_hailo_head_rmse": 1.1275620460510254,
+  "quantized_vs_float_mae": 0.7101109623908997,
+  "mean_prediction_at_0": {
+    "onnx": 0.035,
+    "fp_optimized": 0.036,
+    "quantized": 0.923,
+    "quantized_hailo_head": 0.001
+  },
+  "mean_prediction_at_5": {
+    "onnx": 5.9,
+    "fp_optimized": 5.892,
+    "quantized": 6.229,
+    "quantized_hailo_head": 5.521
+  },
+  "mean_prediction_at_10": {
+    "onnx": 10.099,
+    "fp_optimized": 10.084,
+    "quantized": 9.647,
+    "quantized_hailo_head": 10.092
+  }
+}

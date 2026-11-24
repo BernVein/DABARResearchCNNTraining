@@ -1,0 +1,6 @@
+Steps in docker conversion
+
+# Run the container
+wsl -d Ubuntu -- touch /tmp/hailo_docker.xauth
+docker start hailo8_ai_sw_suite_2026-07_container
+

@@ -1,0 +1,35 @@
+{
+  "samples": 120,
+  "fp_optimized_vs_onnx_db": 108.21324754613596,
+  "encoder_snr_db": 11.087294097468124,
+  "encoder_snr_whole_view_db": 16.544840209899483,
+  "encoder_snr_patch_views_db": 10.3967132975969,
+  "pooled_1728_snr_db": 16.643607297730853,
+  "model_output_snr_db": 15.17255995604123,
+  "model_output_max_abs_diff": 2.639577865600586,
+  "float_mae": 0.7599936127662659,
+  "float_rmse": 1.0547550916671753,
+  "quantized_mae": 0.8980369567871094,
+  "quantized_rmse": 1.263437032699585,
+  "quantized_hailo_head_mae": 0.7847608923912048,
+  "quantized_hailo_head_rmse": 1.094150424003601,
+  "quantized_vs_float_mae": 0.9123470783233643,
+  "mean_prediction_at_0": {
+    "onnx": 0.035,
+    "fp_optimized": 0.035,
+    "quantized": 0.153,
+    "quantized_hailo_head": 0.021
+  },
+  "mean_prediction_at_5": {
+    "onnx": 5.9,
+    "fp_optimized": 5.9,
+    "quantized": 4.983,
+    "quantized_hailo_head": 5.621
+  },
+  "mean_prediction_at_10": {
+    "onnx": 10.099,
+    "fp_optimized": 10.099,
+    "quantized": 8.465,
+    "quantized_hailo_head": 10.018
+  }
+}

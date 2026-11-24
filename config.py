@@ -2,20 +2,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 #################### DATASET PREPARATION ####################
-RAW_DATASET_DIR = Path(r"C:\Users\realb\Documents\PROJECT_FILES\Dataset\soybean_meal")
+RAW_DATASET_DIR = Path(r"C:\Users\SBCAdmin\Documents\PROJECT\PROJECT_FILES\dataset\90mm")
 TASK = "regression"
-FILENAME = "soybean_meal"
+FILENAME = "rice_bran"
 MANIFEST_FILENAME = ROOT / f"{FILENAME}_{TASK}.csv"
 
 if TASK not in ["classification", "regression"]:
     raise ValueError(f"Invalid task: {TASK}. Must be one of 'classification', and 'regression'")
 
-PREPROCESSED_DATASET_DIR = Path(r"C:\Users\realb\Documents\PROJECT_FILES\Dataset\for_training\regression\soybean_meal_augmented")
+PREPROCESSED_DATASET_DIR = Path(r"C:\Users\SBCAdmin\Documents\PROJECT\PROJECT_FILES\for_training\regression\rice_bran")
 
 #################### TRAINING ####################
-PTH_MODEL_OUTPUT_LOCATION = ROOT / "models" / "pth" / "soybean_meal.pth"
-ONNX_MODEL_OUTPUT_LOCATION = ROOT / "models" / "onnx" / "soybean_meal.onnx"
-EPOCHS = 300
+PTH_MODEL_OUTPUT_LOCATION = ROOT / "models" / "pth" / "rice_bran.pth"
+ONNX_MODEL_OUTPUT_LOCATION = ROOT / "models" / "onnx" / "rice_bran.onnx"
+EPOCHS = 3000
 BATCH_SIZE = 32
 
 

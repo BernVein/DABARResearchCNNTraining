@@ -15,7 +15,7 @@ PREPROCESSED_DATASET_DIR = Path(r"D:\Users\Miles\Thesis Project SBC\Dataset")
 #################### TRAINING ####################
 PTH_MODEL_OUTPUT_LOCATION = ROOT / "models" / "pth" / "rice_bran.pth"
 ONNX_MODEL_OUTPUT_LOCATION = ROOT / "models" / "onnx" / "rice_bran.onnx"
-EPOCHS = 300
+EPOCHS = 3000
 BATCH_SIZE = 32
 
 
